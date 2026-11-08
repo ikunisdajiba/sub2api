@@ -173,6 +173,20 @@
             <PlatformIcon platform="typesafe" size="sm" />
             TypeSafe / Jev
           </button>
+          <button
+            type="button"
+            data-testid="platform-button-workbuddy"
+            @click="selectWorkBuddyPlatform()"
+            :class="[
+              'flex flex-1 items-center justify-center gap-2 rounded-md px-3 py-2.5 text-sm font-medium transition-all',
+              form.platform === 'workbuddy'
+                ? 'bg-white text-emerald-700 shadow-sm dark:bg-dark-600 dark:text-emerald-300'
+                : 'text-gray-600 hover:text-gray-900 dark:text-gray-400 dark:hover:text-gray-200'
+            ]"
+          >
+            <Icon name="server" size="sm" />
+            WorkBuddy 反代
+          </button>
         </div>
         <!-- 国产厂商：Kimi / Zhipu GLM / DeepSeek / MiniMax -->
         <div class="mt-2 flex flex-wrap rounded-lg bg-gray-100 p-1 dark:bg-dark-700" data-testid="platform-row-cn">
@@ -4566,6 +4580,12 @@ function selectTypeSafePlatform() {
   accountCategory.value = 'apikey'
   apiKeyBaseUrl.value = 'https://api.typesafe.ai'
   allowedModels.value = ['jev-latest']
+}
+function selectWorkBuddyPlatform() {
+  form.platform = 'workbuddy'
+  form.type = 'apikey'
+  accountCategory.value = 'apikey'
+  apiKeyBaseUrl.value = 'http://wb-proxy:8788'
 }
 function selectGenericMultiProtocolPlatform(platform: string) {
   form.platform = platform
