@@ -48,6 +48,9 @@ func RegisterAdminRoutes(
 		// 账号管理
 		registerAccountRoutes(admin, h, stepUpAuth)
 
+		// WorkBuddy 反代网关（真实账号管理融合进 sub2）
+		registerWorkBuddyRoutes(admin, h)
+
 		// 公告管理
 		registerAnnouncementRoutes(admin, h)
 
@@ -906,4 +909,21 @@ func channelMonitorModeV2Guard(settingService *service.SettingService) gin.Handl
 		}
 		c.Next()
 	}
+}
+
+// registerWorkBuddyRoutes 注册 WorkBuddy 反代网关管理路由。
+// sub2 直接管理网关里的真实上游账号：列表 / 登录新增 / 签到 / 刷新积分 / 启停 / 删除 / 同步成 sub2 账号。
+func registerWorkBuddyRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
+	if h.Admin.WorkBuddy == nil {
+		return
+	}
+	wb := admin.Group("/workbuddy")
+	wb.GET("/accounts", h.Admin.WorkBuddy.ListAccounts)
+	wb.POST("/login/start", h.Admin.WorkBuddy.LoginStart)
+	wb.GET("/login/poll", h.Admin.WorkBuddy.LoginPoll)
+	wb.POST("/accounts/checkin", h.Admin.WorkBuddy.Checkin)
+	wb.POST("/accounts/credits", h.Admin.WorkBuddy.FetchCredits)
+	wb.POST("/accounts/update", h.Admin.WorkBuddy.UpdateAccount)
+	wb.POST("/accounts/delete", h.Admin.WorkBuddy.DeleteAccount)
+	wb.POST("/sync", h.Admin.WorkBuddy.Sync)
 }

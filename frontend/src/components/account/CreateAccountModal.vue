@@ -4582,10 +4582,10 @@ function selectTypeSafePlatform() {
   allowedModels.value = ['jev-latest']
 }
 function selectWorkBuddyPlatform() {
-  form.platform = 'workbuddy'
-  form.type = 'apikey'
-  accountCategory.value = 'apikey'
-  apiKeyBaseUrl.value = 'http://wb-proxy:8788'
+  // WorkBuddy 的真实账号在 wb 反代网关里（带登录/签到/积分/锁定）。
+  // 这里不再造一个无法锁定上游的假账号，而是直接打开网关管理面板。
+  window.dispatchEvent(new CustomEvent('sub2:open-workbuddy-gateway'))
+  emit('close')
 }
 function selectGenericMultiProtocolPlatform(platform: string) {
   form.platform = platform

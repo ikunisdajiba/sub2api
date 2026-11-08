@@ -53,6 +53,7 @@ const (
 	PlatformCommandCode = domain.PlatformCommandCode
 	PlatformCline       = domain.PlatformCline
 	PlatformComposite   = domain.PlatformComposite
+	PlatformWorkBuddy   = domain.PlatformWorkBuddy
 	// PlatformKiro is retained for unsupported-platform threshold tests and legacy
 	// account rows. Scheduling-threshold evaluation never pauses kiro accounts.
 	PlatformKiro = "kiro"
