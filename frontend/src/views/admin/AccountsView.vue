@@ -249,6 +249,13 @@
               >
                 {{ accountDisplayEmail(row) }}
               </span>
+              <span
+                v-if="wbCreditsLabel(row)"
+                class="text-xs font-medium text-emerald-600 dark:text-emerald-400"
+                :title="wbCreditsDetail(row)"
+              >
+                {{ wbCreditsLabel(row) }}
+              </span>
             </div>
           </template>
           <template #cell-notes="{ value }">
@@ -1755,6 +1762,26 @@ function getAntigravityTierLabel(row: any): string | null {
 // 供名称单元格 v-if/标题/文本三处共用,避免同一回退链在模板里重复三次。
 function accountDisplayEmail(row: any): string {
   return row.extra?.email_address || row.extra?.email || row.credentials?.email || row.parent_email || ''
+}
+
+function wbCreditsLabel(row: any): string {
+  const pool = row?.extra?.wb_credits?.pool
+  if (!pool) return ''
+  const remain = Number(pool.remain ?? 0)
+  const size = Number(pool.size ?? 0)
+  if (!Number.isFinite(remain) || !Number.isFinite(size) || size <= 0) return ''
+  const pct = Math.round((remain / size) * 100)
+  return `WB ${remain.toFixed(0)}/${size.toFixed(0)} (${pct}%)`
+}
+
+function wbCreditsDetail(row: any): string {
+  const wb = row?.extra?.wb_credits
+  if (!wb) return ''
+  const lines = (wb.accounts || []).map((a: any) =>
+    `${a.nickname || a.uid}: ${a.remain}/${a.size} (${a.remain_percent || ''})`
+      + (a.checkin?.streak_days ? ` 连签${a.checkin.streak_days}天` : ''))
+  if (wb.synced_at) lines.push('同步于 ' + String(wb.synced_at).replace('T', ' ').slice(0, 19))
+  return lines.join('\n')
 }
 
 function accountHomepageUrl(row: Account): string {
