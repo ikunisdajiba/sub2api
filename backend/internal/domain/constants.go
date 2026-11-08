@@ -38,6 +38,9 @@ const (
 	// PlatformCline 是 Cline API（多模型聚合，OpenAI 兼容 Chat Completions；按量积分计费，
 	// 另有 ClinePass 订阅）。
 	PlatformCline     = "cline"
+	// PlatformWorkBuddy 是 WorkBuddy 反代（wb-proxy）：OpenAI 兼容的账号池网关，
+	// 由 sub2api 通过 base_url + api_key 转发，积分由外部同步脚本写入 extra.wb_credits。
+	PlatformWorkBuddy = "workbuddy"
 	PlatformComposite = "composite"
 )
 

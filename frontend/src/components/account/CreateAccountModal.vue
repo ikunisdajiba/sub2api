@@ -4577,6 +4577,15 @@ function selectGenericMultiProtocolPlatform(platform: string) {
   resetAdaptiveBaseUrls(platform, accountMode.value)
   openCodeGoProtocolRules.value = cloneOpenCodeGoProtocolRules(defaultProviderProtocolRules(platform, accountMode.value))
 }
+// WorkBuddy 反代：选中该平台时自动填入 wb-proxy 基址。
+watch(() => form.platform, (platform) => {
+  if (platform !== 'workbuddy') return
+  const cur = (apiKeyBaseUrl.value || '').trim()
+  if (!cur || cur === 'https://api.anthropic.com' || cur === 'https://api.openai.com/v1') {
+    apiKeyBaseUrl.value = 'http://wb-proxy:8788'
+  }
+})
+
 // 账号类型 / 协议变更时同步默认 base url。
 watch(openCodeAccountMode, (mode, previousMode) => {
   if (!isOpenCodeGoPlatform.value) return
