@@ -1524,6 +1524,30 @@
             :current-url="apiKeyBaseUrl"
             @select="onCnPresetSelect"
           />
+          <div class="mt-2 flex flex-wrap items-center gap-2">
+            <span class="text-xs text-gray-500 dark:text-gray-400">WorkBuddy:</span>
+            <button
+              type="button"
+              class="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
+              @click="apiKeyBaseUrl = 'http://wb-proxy:8788'"
+            >
+              wb-proxy:8788
+            </button>
+            <button
+              type="button"
+              class="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
+              @click="apiKeyBaseUrl = 'http://172.18.0.1:8788'"
+            >
+              172.18.0.1:8788
+            </button>
+            <button
+              type="button"
+              class="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
+              @click="apiKeyBaseUrl = 'http://38.55.252.47:8788'"
+            >
+              公网 :8788
+            </button>
+          </div>
         </div>
         <div v-else>
           <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.endpoints') }}</label>
