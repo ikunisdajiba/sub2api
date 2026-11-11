@@ -1,11 +1,13 @@
 package admin
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/Wei-Shaw/sub2api/internal/domain"
 	"github.com/Wei-Shaw/sub2api/internal/pkg/response"
 	"github.com/Wei-Shaw/sub2api/internal/service"
 
@@ -45,6 +47,21 @@ func (h *WorkBuddyHandler) ListAccounts(c *gin.Context) {
 		response.Error(c, http.StatusBadGateway, err.Error())
 		return
 	}
+	// 深度融合：把每个 wb 账号对应的 sub2 账号一起带出去，
+	// 管理面一眼能看出「这个 wb 号有没有独立账号、当前是否在调度」。
+	rows, _ := data["accounts"].([]any)
+	links := h.sub2AccountsByUID(c.Request.Context())
+	for _, raw := range rows {
+		row, ok := raw.(map[string]any)
+		if !ok {
+			continue
+		}
+		uid, _ := row["uid"].(string)
+		if link, ok := links[strings.TrimSpace(uid)]; ok {
+			row["sub2_account"] = link
+		}
+	}
+
 	response.Success(c, gin.H{
 		"accounts":     data["accounts"],
 		"usable":       data["usable"],
@@ -153,6 +170,11 @@ func (h *WorkBuddyHandler) UpdateAccount(c *gin.Context) {
 			response.Error(c, http.StatusBadGateway, err.Error())
 			return
 		}
+		// 深度融合：网关里停用的账号，sub2 侧的独立账号也要停用，
+		// 否则调度器还会往一个已被停用的上游号上打流量。
+		if enabled, ok := req["enabled"].(bool); ok {
+			h.applyGatewayStateToSub2(ctx, uid, enabled)
+		}
 	}
 	data, err := h.client.Accounts(ctx, "all")
 	if err != nil {
@@ -211,6 +233,8 @@ func (h *WorkBuddyHandler) Sync(c *gin.Context) {
 		UIDs     []string `json:"uids"`
 		Realm    string   `json:"realm"`
 		GroupIDs []int64  `json:"group_ids"`
+		// Concurrency 建号时的并发上限；<=0 用默认值。
+		Concurrency int `json:"concurrency"`
 	}
 	_ = c.ShouldBindJSON(&req)
 
@@ -302,13 +326,17 @@ func (h *WorkBuddyHandler) Sync(c *gin.Context) {
 		// 注意：sub2 的调度器按分组平台挑选账号，只有 platform=openai 的账号
 		// 才会被 OpenAI 网关选中。wb 账号的"身份"由 extra.wb_uid +
 		// X-WB-Account 请求头锁定，平台仍记为 openai 才能真的跑流量。
+		concurrency := req.Concurrency
+		if concurrency <= 0 {
+			concurrency = 3
+		}
 		input := &service.CreateAccountInput{
 			Name:        "WorkBuddy-" + nickname,
 			Platform:    service.PlatformOpenAI,
 			Type:        service.AccountTypeAPIKey,
 			Credentials: h.buildCredentials(uid),
 			Extra:       extra,
-			Concurrency: 3,
+			Concurrency: concurrency,
 			Priority:    1,
 			GroupIDs:    req.GroupIDs,
 		}
@@ -323,6 +351,55 @@ func (h *WorkBuddyHandler) Sync(c *gin.Context) {
 		"result":   outcome,
 		"accounts": data["accounts"],
 	})
+}
+
+// applyGatewayStateToSub2 把网关侧的启停状态同步到对应的 sub2 账号。
+// 网关停用 = 上游号不可用，sub2 侧必须同步停用，否则会往死号上打流量。
+func (h *WorkBuddyHandler) applyGatewayStateToSub2(ctx context.Context, uid string, enabled bool) {
+	accounts, _, err := h.adminService.ListAccounts(ctx, 1, 1000, "", "", "", "", 0, "", "", "")
+	if err != nil {
+		return
+	}
+	status := domain.StatusActive
+	if !enabled {
+		status = domain.StatusDisabled
+	}
+	for i := range accounts {
+		if extractWorkBuddyUID(accounts[i].Extra) != uid {
+			continue
+		}
+		if accounts[i].Status == status {
+			continue
+		}
+		_, _ = h.adminService.UpdateAccount(ctx, accounts[i].ID, &service.UpdateAccountInput{
+			Status: status,
+		})
+	}
+}
+
+// sub2AccountsByUID 索引现有 sub2 账号：wb uid -> 账号摘要。
+// 一个 wb 账号对应一个独立 sub2 账号，凭据里带 X-WB-Account 锁定流量。
+func (h *WorkBuddyHandler) sub2AccountsByUID(ctx context.Context) map[string]gin.H {
+	out := map[string]gin.H{}
+	existing, _, err := h.adminService.ListAccounts(ctx, 1, 1000, "", "", "", "", 0, "", "", "")
+	if err != nil {
+		return out
+	}
+	for i := range existing {
+		uid := extractWorkBuddyUID(existing[i].Extra)
+		if uid == "" {
+			continue
+		}
+		out[uid] = gin.H{
+			"id":          existing[i].ID,
+			"name":        existing[i].Name,
+			"status":      existing[i].Status,
+			"schedulable": existing[i].Schedulable,
+			"concurrency": existing[i].Concurrency,
+			"priority":    existing[i].Priority,
+		}
+	}
+	return out
 }
 
 func (h *WorkBuddyHandler) buildCredentials(uid string) map[string]any {

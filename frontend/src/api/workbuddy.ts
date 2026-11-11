@@ -23,6 +23,15 @@ export interface WBCredits {
   [key: string]: unknown
 }
 
+export interface WBSub2Link {
+  id: number
+  name: string
+  status?: string
+  schedulable?: boolean
+  concurrency?: number
+  priority?: number
+}
+
 export interface WBAccount {
   uid: string
   nickname?: string
@@ -36,6 +45,8 @@ export interface WBAccount {
   expiresIn?: string
   lastError?: string
   credits?: WBCredits
+  /** 该 wb 账号对应的独立 sub2 账号（未建号时缺省） */
+  sub2_account?: WBSub2Link
   [key: string]: unknown
 }
 
@@ -58,6 +69,8 @@ export interface WBLoginStart {
 export interface WBLoginPoll {
   status: string
   message?: string
+  /** status=ok 时返回刚登录的账号，用于按账号维度建号 */
+  account?: WBAccount
   [key: string]: unknown
 }
 
@@ -103,11 +116,17 @@ export async function deleteWorkBuddyAccount(uid: string): Promise<WBAcountsPayl
   return res.data
 }
 
-export async function syncWorkBuddyAccounts(uids?: string[], realm = 'all', groupIds?: number[]): Promise<WBSyncOutcome> {
+export async function syncWorkBuddyAccounts(
+  uids?: string[],
+  realm = 'all',
+  groupIds?: number[],
+  concurrency?: number
+): Promise<WBSyncOutcome> {
   const res = await apiClient.post<WBSyncOutcome>('/admin/workbuddy/sync', {
     uids: uids || [],
     realm,
-    group_ids: groupIds || []
+    group_ids: groupIds || [],
+    concurrency: concurrency || 0
   })
   return res.data
 }
