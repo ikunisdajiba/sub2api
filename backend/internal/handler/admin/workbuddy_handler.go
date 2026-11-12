@@ -349,7 +349,10 @@ func (h *WorkBuddyHandler) Sync(c *gin.Context) {
 			// 被重复计入池子、并发与限速全部算错。
 			for _, dup := range matches[1:] {
 				emptyGroups := []int64{}
-				_, _ = h.adminService.UpdateAccount(ctx, dup.ID, &service.UpdateAccountInput{
+				// 去重是内部清理，不是用户对该上游号的启停操作。必须走 bypass，
+				// 否则会触发反向联动把网关侧同一个 uid 停用，连带把刚保留的
+				// 这条账号也一起弄死。
+				_, _ = h.adminService.UpdateAccount(service.WithAccountStatusSyncBypass(ctx), dup.ID, &service.UpdateAccountInput{
 					Status:   domain.StatusDisabled,
 					GroupIDs: &emptyGroups,
 				})
