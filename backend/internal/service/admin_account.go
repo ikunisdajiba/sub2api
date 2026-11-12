@@ -21,6 +21,25 @@ import (
 )
 
 // Account management implementations
+// AccountStatusChangeHook 在账号状态被改动后回调，用于把 sub2 侧的启停
+// 反向同步到外部账号池（例如 WorkBuddy 网关的上游号）。
+// 为 nil 时不做任何事，保持 service 层对具体外部系统的零依赖。
+var AccountStatusChangeHook func(ctx context.Context, account *Account, previousStatus string)
+
+// accountStatusSyncBypassKey 标记「这次状态变更来自外部同步」，
+// 避免 sub2 -> 网关 -> sub2 的无限往返。
+type accountStatusSyncBypassKey struct{}
+
+// WithAccountStatusSyncBypass 返回一个不会再次触发反向同步的 context。
+func WithAccountStatusSyncBypass(ctx context.Context) context.Context {
+	return context.WithValue(ctx, accountStatusSyncBypassKey{}, true)
+}
+
+func accountStatusSyncBypassed(ctx context.Context) bool {
+	v, _ := ctx.Value(accountStatusSyncBypassKey{}).(bool)
+	return v
+}
+
 func (s *adminServiceImpl) ListAccounts(ctx context.Context, page, pageSize int, platform, accountType, status, search string, groupID int64, privacyMode string, sortBy, sortOrder string) ([]Account, int64, error) {
 	if groupID > 0 {
 		if err := s.ValidateAccountGroupBindings(ctx, []int64{groupID}); err != nil {
@@ -581,6 +600,7 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	if err != nil {
 		return nil, err
 	}
+	previousStatus := account.Status
 	if account.Platform == PlatformTypeSafe && input.Type != "" && input.Type != AccountTypeAPIKey {
 		return nil, errors.New("typesafe accounts only support apikey credentials")
 	}
@@ -926,6 +946,13 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	updated, err := s.accountRepo.GetByID(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+
+	// 启停状态变了就通知外部账号池反向同步（失败不影响本次更新结果：
+	// 账号状态是本地事实，外部同步是尽力而为的副作用）。
+	if input.Status != "" && updated.Status != previousStatus &&
+		AccountStatusChangeHook != nil && !accountStatusSyncBypassed(ctx) {
+		AccountStatusChangeHook(ctx, updated, previousStatus)
 	}
 	return updated, nil
 }

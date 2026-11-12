@@ -3,6 +3,7 @@ package admin
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -22,10 +23,25 @@ type WorkBuddyHandler struct {
 
 // NewWorkBuddyHandler 创建 WorkBuddy 网关管理处理器。
 func NewWorkBuddyHandler(adminService service.AdminService) *WorkBuddyHandler {
-	return &WorkBuddyHandler{
+	h := &WorkBuddyHandler{
 		adminService: adminService,
 		client:       service.NewWorkBuddyProxyClient(),
 	}
+	// 反向联动：在 sub2 里停用某个 WorkBuddy 账号时，把网关侧同一个上游号
+	// 也停用。否则 sub2 只是"自己不用了"，网关那边仍在把它算进可用池、
+	// 别的入口还能继续消耗它——这就不是真的「绑定」。
+	service.AccountStatusChangeHook = func(ctx context.Context, account *service.Account, previousStatus string) {
+		uid := extractWorkBuddyUID(account.Extra)
+		if uid == "" {
+			return
+		}
+		enabled := account.Status == domain.StatusActive
+		ctx = service.WithAccountStatusSyncBypass(ctx)
+		if _, err := h.client.SetAccount(ctx, map[string]any{"uid": uid, "enabled": enabled}); err != nil {
+			slog.Error("workbuddy_reverse_status_sync_failed", "uid", uid, "error", err)
+		}
+	}
+	return h
 }
 
 func (h *WorkBuddyHandler) guard(c *gin.Context) bool {
@@ -261,10 +277,13 @@ func (h *WorkBuddyHandler) Sync(c *gin.Context) {
 		response.InternalError(c, err.Error())
 		return
 	}
-	byUID := map[string]*service.Account{}
+	// 同一个 wb uid 可能对应多条历史账号（早期 sync 每次都会新建）。
+	// 这里保留全部而不是互相覆盖，否则去重会漏掉重复项、只更新最后一条，
+	// 其余重复账号永远留在库里继续被调度器选中。
+	byUID := map[string][]*service.Account{}
 	for i := range existing {
 		if uid := extractWorkBuddyUID(existing[i].Extra); uid != "" {
-			byUID[uid] = &existing[i]
+			byUID[uid] = append(byUID[uid], &existing[i])
 		}
 	}
 
@@ -301,7 +320,8 @@ func (h *WorkBuddyHandler) Sync(c *gin.Context) {
 		}
 		extra := buildWorkBuddyExtra(uid, row)
 
-		if current, ok := byUID[uid]; ok {
+		if matches, ok := byUID[uid]; ok && len(matches) > 0 {
+			current := matches[0]
 			merged := map[string]any{}
 			for k, v := range current.Extra {
 				merged[k] = v
@@ -309,15 +329,31 @@ func (h *WorkBuddyHandler) Sync(c *gin.Context) {
 			for k, v := range extra {
 				merged[k] = v
 			}
-			input := &service.UpdateAccountInput{
+			updateInput := &service.UpdateAccountInput{
 				Name:        "WorkBuddy-" + nickname,
 				Type:        service.AccountTypeAPIKey,
 				Credentials: h.buildCredentials(uid),
 				Extra:       merged,
 			}
-			if _, err := h.adminService.UpdateAccount(ctx, current.ID, input); err != nil {
+			// 同步时补齐分组：以前只在创建时写分组，已有账号永远补不上，
+			// 结果账号在分组外、调度器看不见，等于摆设。
+			if len(req.GroupIDs) > 0 {
+				groupIDs := req.GroupIDs
+				updateInput.GroupIDs = &groupIDs
+			}
+			if _, err := h.adminService.UpdateAccount(ctx, current.ID, updateInput); err != nil {
 				outcome.Errors = append(outcome.Errors, fmt.Sprintf("%s 更新失败: %v", nickname, err))
 				continue
+			}
+			// 重复账号：停用并清掉分组，只保留一条真正在跑的，避免同一上游号
+			// 被重复计入池子、并发与限速全部算错。
+			for _, dup := range matches[1:] {
+				emptyGroups := []int64{}
+				_, _ = h.adminService.UpdateAccount(ctx, dup.ID, &service.UpdateAccountInput{
+					Status:   domain.StatusDisabled,
+					GroupIDs: &emptyGroups,
+				})
+				outcome.Skipped = append(outcome.Skipped, fmt.Sprintf("%s(重复#%d 已停用)", nickname, dup.ID))
 			}
 			outcome.Updated = append(outcome.Updated, nickname)
 			continue
@@ -371,7 +407,9 @@ func (h *WorkBuddyHandler) applyGatewayStateToSub2(ctx context.Context, uid stri
 		if accounts[i].Status == status {
 			continue
 		}
-		_, _ = h.adminService.UpdateAccount(ctx, accounts[i].ID, &service.UpdateAccountInput{
+		// 用 bypass context：这是网关 -> sub2 的正向同步，
+		// 不能再触发 sub2 -> 网关的反向回调，否则两边来回打。
+		_, _ = h.adminService.UpdateAccount(service.WithAccountStatusSyncBypass(ctx), accounts[i].ID, &service.UpdateAccountInput{
 			Status: status,
 		})
 	}
