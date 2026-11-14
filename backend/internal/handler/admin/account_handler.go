@@ -11,6 +11,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -1310,6 +1311,9 @@ func (h *AccountHandler) Test(c *gin.Context) {
 
 	// Use AccountTestService to test the account with SSE streaming
 	if err := h.accountTestService.TestAccountConnection(c, accountID, req.ModelID, req.Prompt, req.Mode, opts); err != nil {
+		// 探活失败 = 已复现该账号不可用：停用并记录错误码，
+		// 否则面板会一直显示正常、调度器继续把请求派给它。
+		h.handleFailedTest(c, accountID, err)
 		// Error already sent via SSE, just log
 		return
 	}
@@ -3390,4 +3394,52 @@ func sanitizeExtraBaseRPM(extra map[string]any) {
 		v = 10000
 	}
 	extra["base_rpm"] = v
+}
+
+// handleFailedTest 在手动探活失败后停用账号，并把上游错误码写到面板上。
+//
+// 之前只有成功路径会调用 RecoverAccountAfterSuccessfulTest，失败时直接
+// return，账号状态原封不动：界面上看着「正常」，实际每次调用都失败，
+// 这正是「探活失败却不会自动停用」的来源。
+func (h *AccountHandler) handleFailedTest(c *gin.Context, accountID int64, testErr error) {
+	ctx := c.Request.Context()
+	code := extractUpstreamErrorCode(testErr.Error())
+
+	account, err := h.adminService.GetAccount(ctx, accountID)
+	if err != nil || account == nil {
+		return
+	}
+	extra := map[string]any{}
+	for k, v := range account.Extra {
+		extra[k] = v
+	}
+	if code != "" {
+		extra["error_code"] = code
+		extra["last_error"] = testErr.Error()
+	}
+	if _, err := h.adminService.UpdateAccount(ctx, accountID, &service.UpdateAccountInput{
+		Status: "inactive",
+		Extra:  extra,
+	}); err != nil {
+		log.Printf("failed to disable account %d after failed test: %v", accountID, err)
+	}
+}
+
+// extractUpstreamErrorCode 从错误文本里抠出上游错误码。
+// 上游的码有 6004（限流）、11-128（请求被拦）、11140（账号受限）三种写法。
+func extractUpstreamErrorCode(msg string) string {
+	if msg == "" {
+		return ""
+	}
+	// 先找 JSON 里的 "code": "xxx" / "code": xxx
+	re := regexp.MustCompile(`"code"\s*:\s*"?([0-9A-Za-z_-]{2,20})"?`)
+	if m := re.FindStringSubmatch(msg); len(m) == 2 {
+		return m[1]
+	}
+	// 再找裸的 HTTP 状态码
+	re2 := regexp.MustCompile(`API returned (\d{3})`)
+	if m := re2.FindStringSubmatch(msg); len(m) == 2 {
+		return "HTTP " + m[1]
+	}
+	return ""
 }

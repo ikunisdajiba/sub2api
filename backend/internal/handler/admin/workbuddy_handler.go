@@ -470,10 +470,18 @@ func buildWorkBuddyExtra(uid string, row map[string]any) map[string]any {
 		"wb_uid":       uid,
 		"wb_synced_at": time.Now().Format(time.RFC3339),
 	}
-	for _, key := range []string{"nickname", "realm", "product", "platform", "enabled", "weight", "note", "domain", "expiresAt", "lastError"} {
+	for _, key := range []string{"nickname", "realm", "product", "platform", "enabled",
+		"weight", "note", "domain", "expiresAt", "lastError", "errorCode", "schedulable"} {
 		if v, ok := row[key]; ok {
 			extra["wb_"+key] = v
 		}
+	}
+	// 上游错误码单独留一份，面板直接显示，不用再去拼 lastError 字符串。
+	if code, ok := row["errorCode"].(string); ok && code != "" {
+		extra["wb_errorCode"] = code
+	}
+	if sched, ok := row["schedulable"].(bool); ok {
+		extra["wb_schedulable"] = sched
 	}
 	if credits, ok := row["credits"]; ok && credits != nil {
 		extra["wb_credits"] = map[string]any{
