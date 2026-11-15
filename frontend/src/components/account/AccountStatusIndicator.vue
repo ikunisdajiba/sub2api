@@ -33,7 +33,7 @@
     </template>
 
     <!-- Error Info Indicator -->
-    <div v-if="hasError && account.error_message" class="group/error relative">
+    <div v-if="hasErrorMessage" class="group/error relative">
       <svg
         class="h-4 w-4 cursor-help text-red-500 transition-colors hover:text-red-600 dark:text-red-400 dark:hover:text-red-300"
         fill="none"
@@ -284,6 +284,15 @@ const hasError = computed(() => {
   return props.account.status === 'error'
 })
 
+// 停用原因（error_message）不只出现在 status==='error' 的账号上：
+// 被上游限流/封禁而停用的账号 status 是 inactive，但原因同样要能看到。
+// 之前图标只在 status==='error' 时渲染，inactive 账号的原因等于被藏起来了。
+const hasErrorMessage = computed(() => {
+  const msg = (props.account.error_message || '').trim()
+  if (!msg) return false
+  return props.account.status !== 'active'
+})
+
 const isQuotaExceeded = computed(() => {
   const exceeded = (used?: number | null, limit?: number | null) =>
     typeof limit === 'number' && limit > 0 && typeof used === 'number' && used >= limit
@@ -337,6 +346,18 @@ const statusClass = computed(() => {
 })
 
 // Computed: status text
+// 停用原因摘要：把 error_message 里最有信息量的一段抽出来，
+// 直接跟在状态后面显示，不用再悬停才看得到。
+const disabledReasonShort = computed(() => {
+  if (!hasErrorMessage.value) return ''
+  const raw = (props.account.error_message || '').trim()
+  if (!raw) return ''
+  // 优先取上游错误码（6004 / 11-128 / 11140）
+  const code = raw.match(/\b(\d{4,5}|\d{1,2}-\d{1,3})\b/)
+  if (code) return code[1]
+  return raw.length > 12 ? raw.slice(0, 12) + '…' : raw
+})
+
 const statusText = computed(() => {
   if (hasError.value) {
     return t('admin.accounts.status.error')
@@ -345,7 +366,8 @@ const statusText = computed(() => {
     return t('admin.accounts.status.tempUnschedulable')
   }
   if (props.account.status !== 'active') {
-    return t(`admin.accounts.status.${props.account.status}`)
+    const base = t(`admin.accounts.status.${props.account.status}`)
+    return disabledReasonShort.value ? `${base} · ${disabledReasonShort.value}` : base
   }
   if (isQuotaExceeded.value) {
     return t('admin.accounts.status.quotaExceeded')
