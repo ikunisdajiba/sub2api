@@ -14,7 +14,7 @@
           <AccountTableActions
             :loading="loading"
             @refresh="handleManualRefresh"
-            @create="showCreate = true"
+            @create="showWorkBuddy = true"
           >
             <template #after>
               <!-- Auto Refresh Dropdown -->
@@ -132,6 +132,12 @@
                           <Icon name="lock" size="sm" />
                         </span>
                         <span class="flex-1 text-left">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
+                      </button>
+                      <button class="account-tools-menu-item" @click="showCreate = true">
+                        <span class="account-tools-menu-icon bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300">
+                          <Icon name="plus" size="sm" />
+                        </span>
+                        <span class="flex-1 text-left">其他平台账号（通用表单）</span>
                       </button>
                       <button class="account-tools-menu-item" @click="showWorkBuddy = true">
                         <span class="account-tools-menu-icon bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
