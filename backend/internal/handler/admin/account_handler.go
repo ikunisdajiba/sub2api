@@ -2372,7 +2372,6 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		RateMultiplier:        req.RateMultiplier,
 		LoadFactor:            req.LoadFactor,
 		Status:                req.Status,
-		ErrorMessage:          req.ErrorMessage,
 		Schedulable:           req.Schedulable,
 		GroupIDs:              req.GroupIDs,
 		Credentials:           req.Credentials,
