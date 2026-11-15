@@ -926,4 +926,7 @@ func registerWorkBuddyRoutes(admin *gin.RouterGroup, h *handler.Handlers) {
 	wb.POST("/accounts/update", h.Admin.WorkBuddy.UpdateAccount)
 	wb.POST("/accounts/delete", h.Admin.WorkBuddy.DeleteAccount)
 	wb.POST("/sync", h.Admin.WorkBuddy.Sync)
+	wb.POST("/probe-all", h.Admin.WorkBuddy.ProbeAll)
+	wb.POST("/probe/schedule", h.Admin.WorkBuddy.ProbeSchedule)
+	wb.GET("/probe/schedule", h.Admin.WorkBuddy.ProbeSchedule)
 }

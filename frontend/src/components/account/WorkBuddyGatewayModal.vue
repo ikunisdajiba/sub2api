@@ -23,6 +23,7 @@
             <option value="intl">国际 (intl)</option>
           </select>
           <button class="btn btn-secondary h-8 px-3 text-xs" :disabled="busy" @click="load">刷新</button>
+          <button class="btn btn-primary h-8 px-3 text-xs" :disabled="busy" @click="doProbeAll">主动探活全部</button>
           <button class="btn btn-secondary h-8 px-3 text-xs" :disabled="busy" @click="doCheckin('')">一键签到</button>
           <button class="btn btn-secondary h-8 px-3 text-xs" :disabled="busy" @click="doCredits('')">刷新积分</button>
           <button class="btn btn-primary h-8 px-3 text-xs" :disabled="busy" @click="toggleAdd">
@@ -30,6 +31,29 @@
           </button>
           <span class="ml-auto text-xs text-gray-500 dark:text-gray-400">
             可用 {{ payload.usable ?? '-' }} / 共 {{ accounts.length }}
+          </span>
+        </div>
+
+        <!-- 定时主动探活 -->
+        <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-2 text-xs sm:px-5 dark:border-dark-700">
+          <span class="text-gray-500 dark:text-gray-400">定时探活</span>
+          <label class="flex items-center gap-1">
+            <input v-model="probeSchedule.enabled" type="checkbox" class="h-3.5 w-3.5" />
+            <span class="text-gray-700 dark:text-gray-200">启用</span>
+          </label>
+          <span class="text-gray-500 dark:text-gray-400">每</span>
+          <input
+            v-model.number="probeSchedule.interval_minutes"
+            type="number"
+            min="1"
+            class="input h-7 w-16 text-xs"
+          />
+          <span class="text-gray-500 dark:text-gray-400">分钟</span>
+          <button class="btn btn-secondary h-7 px-2 text-xs" :disabled="busy" @click="saveProbeSchedule()">
+            保存
+          </button>
+          <span v-if="probeSchedule.last_run_at" class="text-gray-400">
+            上次：{{ probeSchedule.last_run_at }}
           </span>
         </div>
 
@@ -229,6 +253,9 @@ import {
   pollWorkBuddyLogin,
   startWorkBuddyLogin,
   syncWorkBuddyAccounts,
+  probeWorkBuddyAll,
+  getWorkBuddyProbeSchedule,
+  saveWorkBuddyProbeSchedule,
   updateWorkBuddyAccount,
   type WBAcountsPayload,
   type WBAccount,
@@ -246,6 +273,10 @@ const loading = ref(false)
 const busy = ref(false)
 const error = ref('')
 const notice = ref('')
+const probeSchedule = ref<{ enabled: boolean; interval_minutes: number; last_run_at?: string }>({
+  enabled: false,
+  interval_minutes: 30
+})
 const payload = ref<WBAcountsPayload>({ accounts: [] })
 const loginState = ref<WBLoginStart | null>(null)
 const loginStatus = ref('')
@@ -308,6 +339,43 @@ async function run(action: () => Promise<void>) {
     busy.value = false
   }
 }
+
+const doProbeAll = () => run(async () => {
+  const data = await probeWorkBuddyAll()
+  const s = data.summary || { total: 0, stopped: 0, resumed: 0 }
+  notice.value = `探活完成：共 ${s.total} 个，停用 ${s.stopped}，恢复 ${s.resumed}`
+  if (data.accounts) payload.value = { ...payload.value, accounts: data.accounts }
+  else await load()
+  emit('synced')
+})
+
+const loadProbeSchedule = async () => {
+  try {
+    const s = await getWorkBuddyProbeSchedule()
+    probeSchedule.value = {
+      enabled: !!s.enabled,
+      interval_minutes: Number(s.interval_minutes) || 30,
+      last_run_at: s.last_run_at
+    }
+  } catch {
+    /* 读不到就用默认值 */
+  }
+}
+
+const saveProbeSchedule = () => run(async () => {
+  const s = await saveWorkBuddyProbeSchedule({
+    enabled: probeSchedule.value.enabled,
+    interval_minutes: probeSchedule.value.interval_minutes
+  })
+  probeSchedule.value = {
+    enabled: !!s.enabled,
+    interval_minutes: Number(s.interval_minutes) || 30,
+    last_run_at: s.last_run_at
+  }
+  notice.value = s.enabled
+    ? `定时探活已开启，每 ${s.interval_minutes} 分钟一次`
+    : '定时探活已关闭'
+})
 
 const doCheckin = (uid: string) => run(async () => {
   const data = await checkinWorkBuddy(uid)
@@ -427,6 +495,7 @@ function close() {
 
 watch(() => props.show, (v) => {
   if (v) {
+    loadProbeSchedule()
     if (!selectedGroups.value.length) {
       const preset = openaiGroups.value.filter(g => /workbuddy/i.test(g.name)).map(g => g.id)
       selectedGroups.value = preset.length ? preset : openaiGroups.value.slice(0, 1).map(g => g.id)

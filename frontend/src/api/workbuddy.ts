@@ -130,3 +130,50 @@ export async function syncWorkBuddyAccounts(
   })
   return res.data
 }
+
+export interface WBProbeResult {
+  model?: string
+  ok?: boolean
+  results?: Array<{
+    uid: string
+    nickname: string
+    ok: boolean
+    action: string
+    code?: string
+    error?: string
+  }>
+  summary?: { total: number; stopped: number; resumed: number }
+  accounts?: WBAccount[]
+}
+
+export interface WBProbeSchedule {
+  enabled: boolean
+  interval_minutes: number
+  model?: string
+  last_run_at?: string
+  last_summary?: unknown
+}
+
+// 主动探活：把整个池子的真实健康状态刷一遍，429/403 立刻停用并写原因
+export async function probeWorkBuddyAll(model?: string, realm?: string): Promise<WBProbeResult> {
+  const res = await apiClient.post<WBProbeResult>('/admin/workbuddy/probe-all', {
+    model: model || '',
+    realm: realm || ''
+  })
+  return res.data
+}
+
+// 定时探活配置
+export async function getWorkBuddyProbeSchedule(): Promise<WBProbeSchedule> {
+  const res = await apiClient.get<WBProbeSchedule>('/admin/workbuddy/probe/schedule')
+  return res.data
+}
+
+export async function saveWorkBuddyProbeSchedule(payload: {
+  enabled?: boolean
+  interval_minutes?: number
+  model?: string
+}): Promise<WBProbeSchedule> {
+  const res = await apiClient.post<WBProbeSchedule>('/admin/workbuddy/probe/schedule', payload)
+  return res.data
+}

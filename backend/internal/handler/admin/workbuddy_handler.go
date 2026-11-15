@@ -556,3 +556,42 @@ func (h *WorkBuddyHandler) defaultGroupID(ctx context.Context) int64 {
 	}
 	return 0
 }
+
+// ProbeAll POST /admin/workbuddy/probe-all
+// 主动探活：把整个池子的真实健康状态刷一遍，429/403 立刻停用并写原因。
+func (h *WorkBuddyHandler) ProbeAll(c *gin.Context) {
+	if !h.guard(c) {
+		return
+	}
+	var req struct {
+		Model string `json:"model"`
+		Realm string `json:"realm"`
+		UID   string `json:"uid"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	data, err := h.client.ProbeAll(c.Request.Context(),
+		strings.TrimSpace(req.Model), strings.TrimSpace(req.Realm), strings.TrimSpace(req.UID))
+	if err != nil {
+		response.Error(c, http.StatusBadGateway, err.Error())
+		return
+	}
+	response.Success(c, data)
+}
+
+// ProbeSchedule GET/POST /admin/workbuddy/probe/schedule
+// 读写主动探活的定时配置（开关、间隔分钟、探活模型）。
+func (h *WorkBuddyHandler) ProbeSchedule(c *gin.Context) {
+	if !h.guard(c) {
+		return
+	}
+	var payload map[string]any
+	if c.Request.Method == http.MethodPost {
+		_ = c.ShouldBindJSON(&payload)
+	}
+	data, err := h.client.ProbeSchedule(c.Request.Context(), payload)
+	if err != nil {
+		response.Error(c, http.StatusBadGateway, err.Error())
+		return
+	}
+	response.Success(c, data)
+}

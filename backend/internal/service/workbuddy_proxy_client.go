@@ -187,6 +187,29 @@ func (c *WorkBuddyProxyClient) LoginPoll(ctx context.Context, state string) (map
 }
 
 // Checkin 触发签到（uid 为空则全部 cn 账号）。
+// ProbeAll 主动探活所有账号：通过就放回池子，429/403 就停用并记原因。
+func (c *WorkBuddyProxyClient) ProbeAll(ctx context.Context, model, realm, uid string) (map[string]any, error) {
+	payload := map[string]any{}
+	if model != "" {
+		payload["model"] = model
+	}
+	if realm != "" {
+		payload["realm"] = realm
+	}
+	if uid != "" {
+		payload["uid"] = uid
+	}
+	return c.call(ctx, http.MethodPost, "/accounts/probe-all", payload, true)
+}
+
+// ProbeSchedule 读/写主动探活的定时配置。
+func (c *WorkBuddyProxyClient) ProbeSchedule(ctx context.Context, payload map[string]any) (map[string]any, error) {
+	if payload == nil {
+		payload = map[string]any{}
+	}
+	return c.call(ctx, http.MethodPost, "/accounts/probe/schedule", payload, true)
+}
+
 func (c *WorkBuddyProxyClient) Checkin(ctx context.Context, uid string) (map[string]any, error) {
 	return c.call(ctx, http.MethodPost, "/accounts/checkin", map[string]any{"uid": uid}, true)
 }
