@@ -154,6 +154,9 @@ type UpdateAccountRequest struct {
 	RateMultiplier          *float64       `json:"rate_multiplier"`
 	LoadFactor              *int           `json:"load_factor"`
 	Status                  string         `json:"status" binding:"omitempty,oneof=active inactive error"`
+	// ErrorMessage 停用原因：由同步脚本写入，面板直接展示，
+	// 不然只能看到「已停用」却不知道是限流、封禁还是额度耗尽。
+	ErrorMessage            string         `json:"error_message"`
 	GroupIDs                *[]int64       `json:"group_ids"`
 	ExpiresAt               *int64         `json:"expires_at"`
 	AutoPauseOnExpired      *bool          `json:"auto_pause_on_expired"`
@@ -1191,6 +1194,7 @@ func (h *AccountHandler) Update(c *gin.Context) {
 		RateMultiplier:        req.RateMultiplier,
 		LoadFactor:            req.LoadFactor,
 		Status:                req.Status,
+		ErrorMessage:          req.ErrorMessage,
 		GroupIDs:              req.GroupIDs,
 		ExpiresAt:             req.ExpiresAt,
 		AutoPauseOnExpired:    req.AutoPauseOnExpired,
@@ -2368,6 +2372,7 @@ func (h *AccountHandler) BulkUpdate(c *gin.Context) {
 		RateMultiplier:        req.RateMultiplier,
 		LoadFactor:            req.LoadFactor,
 		Status:                req.Status,
+		ErrorMessage:          req.ErrorMessage,
 		Schedulable:           req.Schedulable,
 		GroupIDs:              req.GroupIDs,
 		Credentials:           req.Credentials,

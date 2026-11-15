@@ -858,6 +858,12 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 	}
 	if input.Status != "" {
 		account.Status = input.Status
+		// 停用原因与状态一起落库，面板才能显示「为什么停」
+		if input.ErrorMessage != "" {
+			account.ErrorMessage = input.ErrorMessage
+		} else if input.Status == "active" {
+			account.ErrorMessage = ""
+		}
 	}
 	if input.ExpiresAt != nil {
 		if *input.ExpiresAt <= 0 {

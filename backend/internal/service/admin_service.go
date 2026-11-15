@@ -447,6 +447,8 @@ type UpdateAccountInput struct {
 	RateMultiplier        *float64 // 账号计费倍率（>=0，允许 0）
 	LoadFactor            *int
 	Status                string
+	// ErrorMessage 停用原因，与 Status 一起写，面板直接展示
+	ErrorMessage          string
 	GroupIDs              *[]int64
 	ExpiresAt             *int64
 	AutoPauseOnExpired    *bool

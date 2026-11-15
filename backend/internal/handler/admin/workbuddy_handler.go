@@ -2,6 +2,7 @@ package admin
 
 import (
 	"context"
+	"os"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -329,17 +330,27 @@ func (h *WorkBuddyHandler) Sync(c *gin.Context) {
 			for k, v := range extra {
 				merged[k] = v
 			}
+			realm, _ := row["realm"].(string)
 			updateInput := &service.UpdateAccountInput{
 				Name:        "WorkBuddy-" + nickname,
 				Type:        service.AccountTypeAPIKey,
-				Credentials: h.buildCredentials(uid),
+				Credentials: h.buildCredentialsForRealm(uid, realm),
 				Extra:       merged,
 			}
 			// 同步时补齐分组：以前只在创建时写分组，已有账号永远补不上，
 			// 结果账号在分组外、调度器看不见，等于摆设。
-			if len(req.GroupIDs) > 0 {
-				groupIDs := req.GroupIDs
-				updateInput.GroupIDs = &groupIDs
+			groupIDs := req.GroupIDs
+			if len(groupIDs) == 0 {
+				// 已有账号如果当前没分组，补默认分组；已有分组就不动它
+				if len(current.GroupIDs) == 0 {
+					if gid := h.defaultGroupID(ctx); gid > 0 {
+						groupIDs = []int64{gid}
+					}
+				}
+			}
+			if len(groupIDs) > 0 {
+				gids := groupIDs
+				updateInput.GroupIDs = &gids
 			}
 			if _, err := h.adminService.UpdateAccount(ctx, current.ID, updateInput); err != nil {
 				outcome.Errors = append(outcome.Errors, fmt.Sprintf("%s 更新失败: %v", nickname, err))
@@ -369,15 +380,24 @@ func (h *WorkBuddyHandler) Sync(c *gin.Context) {
 		if concurrency <= 0 {
 			concurrency = 3
 		}
+		// 没指定分组时绑到 WorkBuddy 默认分组：账号不进分组，
+		// 调度器就看不见它，同步进来也等于摆设。
+		groupIDs := req.GroupIDs
+		if len(groupIDs) == 0 {
+			if gid := h.defaultGroupID(ctx); gid > 0 {
+				groupIDs = []int64{gid}
+			}
+		}
+		realm, _ := row["realm"].(string)
 		input := &service.CreateAccountInput{
 			Name:        "WorkBuddy-" + nickname,
 			Platform:    service.PlatformOpenAI,
 			Type:        service.AccountTypeAPIKey,
-			Credentials: h.buildCredentials(uid),
+			Credentials: h.buildCredentialsForRealm(uid, realm),
 			Extra:       extra,
 			Concurrency: concurrency,
 			Priority:    1,
-			GroupIDs:    req.GroupIDs,
+			GroupIDs:    groupIDs,
 		}
 		if _, err := h.adminService.CreateAccount(ctx, input); err != nil {
 			outcome.Errors = append(outcome.Errors, fmt.Sprintf("%s 创建失败: %v", nickname, err))
@@ -444,6 +464,15 @@ func (h *WorkBuddyHandler) sub2AccountsByUID(ctx context.Context) map[string]gin
 }
 
 func (h *WorkBuddyHandler) buildCredentials(uid string) map[string]any {
+	return h.buildCredentialsForRealm(uid, "")
+}
+
+// buildCredentialsForRealm 按账号所属区域选对应的上游 key。
+//
+// 网关的 key 是分区域的：用 cn 的 key 去打 intl 账号，会被网关按
+// 「模型只在国际版提供」直接 400。之前所有账号都用同一个 key，
+// 导致 intl 账号同步进来后一个请求都发不出去。
+func (h *WorkBuddyHandler) buildCredentialsForRealm(uid, realm string) map[string]any {
 	creds := map[string]any{
 		"base_url":                h.client.BaseURL(),
 		"header_override_enabled": true,
@@ -451,10 +480,26 @@ func (h *WorkBuddyHandler) buildCredentials(uid string) map[string]any {
 			"X-WB-Account": uid,
 		},
 	}
-	if key := h.client.UpstreamAPIKey(); key != "" {
+	if key := h.resolveUpstreamKeyForRealm(realm); key != "" {
 		creds["api_key"] = key
 	}
 	return creds
+}
+
+// resolveUpstreamKeyForRealm 返回该区域对应的网关 key。
+// 未配置区域 key 时退回默认 key，保持原有行为。
+func (h *WorkBuddyHandler) resolveUpstreamKeyForRealm(realm string) string {
+	switch strings.ToLower(strings.TrimSpace(realm)) {
+	case "intl":
+		if k := strings.TrimSpace(os.Getenv("WB_UPSTREAM_API_KEY_INTL")); k != "" {
+			return k
+		}
+	case "cn":
+		if k := strings.TrimSpace(os.Getenv("WB_UPSTREAM_API_KEY_CN")); k != "" {
+			return k
+		}
+	}
+	return h.client.UpstreamAPIKey()
 }
 
 func extractWorkBuddyUID(extra map[string]any) string {
@@ -491,4 +536,23 @@ func buildWorkBuddyExtra(uid string, row map[string]any) map[string]any {
 		}
 	}
 	return extra
+}
+
+// defaultGroupID 找到 WorkBuddy 默认分组，找不到返回 0。
+// 环境变量 WB_DEFAULT_GROUP 可以覆盖名字。
+func (h *WorkBuddyHandler) defaultGroupID(ctx context.Context) int64 {
+	name := strings.TrimSpace(os.Getenv("WB_DEFAULT_GROUP"))
+	if name == "" {
+		name = "WorkBuddy"
+	}
+	groups, err := h.adminService.GetAllGroups(ctx)
+	if err != nil {
+		return 0
+	}
+	for i := range groups {
+		if groups[i].Name == name {
+			return groups[i].ID
+		}
+	}
+	return 0
 }
