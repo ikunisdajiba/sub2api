@@ -1538,30 +1538,6 @@
             :current-url="apiKeyBaseUrl"
             @select="onCnPresetSelect"
           />
-          <div class="mt-2 flex flex-wrap items-center gap-2">
-            <span class="text-xs text-gray-500 dark:text-gray-400">WorkBuddy:</span>
-            <button
-              type="button"
-              class="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
-              @click="apiKeyBaseUrl = 'http://wb-proxy:8788'"
-            >
-              wb-proxy:8788
-            </button>
-            <button
-              type="button"
-              class="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
-              @click="apiKeyBaseUrl = 'http://172.18.0.1:8788'"
-            >
-              172.18.0.1:8788
-            </button>
-            <button
-              type="button"
-              class="rounded border border-gray-300 px-2 py-1 text-xs hover:bg-gray-50 dark:border-dark-600 dark:hover:bg-dark-700"
-              @click="apiKeyBaseUrl = 'http://38.55.252.47:8788'"
-            >
-              公网 :8788
-            </button>
-          </div>
         </div>
         <div v-else>
           <label class="input-label">{{ t('admin.accounts.cnProviders.apiProtocol.endpoints') }}</label>
@@ -4582,10 +4558,11 @@ function selectTypeSafePlatform() {
   allowedModels.value = ['jev-latest']
 }
 function selectWorkBuddyPlatform() {
-  // WorkBuddy 的真实账号在 wb 反代网关里（带登录/签到/积分/锁定）。
-  // 这里不再造一个无法锁定上游的假账号，而是直接打开网关管理面板。
-  window.dispatchEvent(new CustomEvent('sub2:open-workbuddy-gateway'))
-  emit('close')
+  // 就是普通的新建账号表单：填 base url + key 即可，不跳任何面板、不出账号列表。
+  form.platform = 'workbuddy'
+  form.type = 'apikey'
+  accountCategory.value = 'apikey'
+  apiKeyBaseUrl.value = 'http://wb-proxy:8788'
 }
 function selectGenericMultiProtocolPlatform(platform: string) {
   form.platform = platform
