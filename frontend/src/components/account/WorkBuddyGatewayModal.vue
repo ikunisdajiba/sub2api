@@ -5,8 +5,13 @@
         <!-- 头部 -->
         <div class="flex items-start justify-between gap-3 border-b border-gray-200 px-4 py-3 sm:px-5 sm:py-4 dark:border-dark-700">
           <div class="min-w-0">
-            <h3 class="text-base font-semibold text-gray-900 sm:text-lg dark:text-white">WorkBuddy 反代网关</h3>
-            <p class="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+            <h3 class="text-base font-semibold text-gray-900 sm:text-lg dark:text-white">
+              {{ addOnly ? '添加 WorkBuddy 账号' : 'WorkBuddy 反代网关' }}
+            </h3>
+            <p v-if="addOnly" class="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+              登录一次只添加这一个账号，并自动建好对应的独立 sub2 账号。
+            </p>
+            <p v-else class="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">
               这里管理 wb 网关里的真实账号。每个账号对应一个独立的 sub2 账号，
               请求带 <code class="rounded bg-gray-100 px-1 dark:bg-dark-700">X-WB-Account</code>
               锁定到该上游账号，额度和并发都算它自己的。
@@ -16,7 +21,7 @@
         </div>
 
         <!-- 工具条 -->
-        <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-2.5 sm:px-5 dark:border-dark-700">
+        <div v-if="!addOnly" class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-2.5 sm:px-5 dark:border-dark-700">
           <select v-model="realm" class="input h-8 w-auto text-xs" @change="load">
             <option value="all">全部地区</option>
             <option value="cn">国内 (cn)</option>
@@ -35,7 +40,7 @@
         </div>
 
         <!-- 定时主动探活 -->
-        <div class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-2 text-xs sm:px-5 dark:border-dark-700">
+        <div v-if="!addOnly" class="flex flex-wrap items-center gap-2 border-b border-gray-100 px-4 py-2 text-xs sm:px-5 dark:border-dark-700">
           <span class="text-gray-500 dark:text-gray-400">定时探活</span>
           <label class="flex items-center gap-1">
             <input v-model="probeSchedule.enabled" type="checkbox" class="h-3.5 w-3.5" />
@@ -58,7 +63,7 @@
         </div>
 
         <!-- 新增账号：独立账号流程 -->
-        <div v-if="addOpen" class="border-b border-blue-100 bg-blue-50/60 px-4 py-3 sm:px-5 dark:border-blue-900/40 dark:bg-blue-900/10">
+        <div v-if="addOnly || addOpen" class="border-b border-blue-100 bg-blue-50/60 px-4 py-3 sm:px-5 dark:border-blue-900/40 dark:bg-blue-900/10">
           <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label class="block">
               <span class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">登录版本</span>
@@ -123,7 +128,7 @@
         </div>
 
         <!-- 桌面：表格 -->
-        <div class="hidden min-h-0 flex-1 overflow-auto md:block">
+        <div v-if="!addOnly" class="hidden min-h-0 flex-1 overflow-auto md:block">
           <table class="w-full text-left text-sm">
             <thead class="sticky top-0 z-10 bg-gray-50 text-xs uppercase text-gray-500 dark:bg-dark-700 dark:text-gray-400">
               <tr>
@@ -191,7 +196,7 @@
         </div>
 
         <!-- 移动端：卡片 -->
-        <div class="flex-1 space-y-2 overflow-auto p-3 md:hidden">
+        <div v-if="!addOnly" class="flex-1 space-y-2 overflow-auto p-3 md:hidden">
           <div v-if="loading" class="py-8 text-center text-sm text-gray-500">加载中…</div>
           <div v-else-if="!accounts.length" class="py-8 text-center text-sm text-gray-500">网关里还没有账号，点「+ 新增账号」添加。</div>
           <div v-for="acc in accounts" :key="'m-' + acc.uid" class="rounded-xl border border-gray-200 p-3 dark:border-dark-700">
@@ -235,7 +240,10 @@
 
         <!-- 底部 -->
         <div class="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 px-4 py-3 text-xs text-gray-500 sm:px-5 dark:border-dark-700 dark:text-gray-400">
-          <span class="min-w-0 truncate">网关：{{ payload.base_url || '-' }} · 上游 Key：{{ payload.upstream_key ? '已配置' : '未配置' }}</span>
+          <span class="min-w-0 truncate">
+            <template v-if="addOnly">登录成功后自动建号并绑定分组</template>
+            <template v-else>网关：{{ payload.base_url || '-' }} · 上游 Key：{{ payload.upstream_key ? '已配置' : '未配置' }}</template>
+          </span>
           <button class="btn btn-secondary h-8 px-3 text-xs" @click="close">关闭</button>
         </div>
       </div>
@@ -264,7 +272,7 @@ import {
 
 interface GroupOption { id: number; name: string; platform?: string }
 
-const props = defineProps<{ show: boolean; groups?: GroupOption[] }>()
+const props = defineProps<{ show: boolean; groups?: GroupOption[]; addOnly?: boolean }>()
 const emit = defineEmits<{ (e: 'close'): void; (e: 'synced'): void }>()
 
 const realm = ref('all')
@@ -316,6 +324,7 @@ async function copyAuthUrl() {
 }
 
 async function load() {
+  if (props.addOnly) return
   loading.value = true
   error.value = ''
   try {
@@ -489,12 +498,20 @@ const remove = (acc: WBAccount) => run(async () => {
 
 function close() {
   cancelLogin()
-  addOpen.value = false
+  if (!props.addOnly) addOpen.value = false
   emit('close')
 }
 
 watch(() => props.show, (v) => {
   if (v) {
+    if (props.addOnly) {
+      addOpen.value = true
+      if (!selectedGroups.value.length) {
+        const preset = openaiGroups.value.filter(g => /workbuddy/i.test(g.name)).map(g => g.id)
+        selectedGroups.value = preset.length ? preset : openaiGroups.value.slice(0, 1).map(g => g.id)
+      }
+      return
+    }
     loadProbeSchedule()
     if (!selectedGroups.value.length) {
       const preset = openaiGroups.value.filter(g => /workbuddy/i.test(g.name)).map(g => g.id)

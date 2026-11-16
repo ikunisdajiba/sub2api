@@ -14,7 +14,7 @@
           <AccountTableActions
             :loading="loading"
             @refresh="handleManualRefresh"
-            @create="showWorkBuddy = true"
+            @create="showWBAdd = true"
           >
             <template #after>
               <!-- Auto Refresh Dropdown -->
@@ -475,6 +475,7 @@
     </TablePageLayout>
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
     <WorkBuddyGatewayModal :show="showWorkBuddy" :groups="groups" @close="showWorkBuddy = false" @synced="reload" />
+    <WorkBuddyGatewayModal :show="showWBAdd" :groups="groups" add-only @close="showWBAdd = false" @synced="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
@@ -615,6 +616,7 @@ const selTypes = computed<AccountType[]>(() => {
 })
 const showCreate = ref(false)
 const showWorkBuddy = ref(false)
+const showWBAdd = ref(false)
 const openWorkBuddyGateway = () => { showWorkBuddy.value = true }
 onMounted(() => window.addEventListener('sub2:open-workbuddy-gateway', openWorkBuddyGateway))
 onUnmounted(() => window.removeEventListener('sub2:open-workbuddy-gateway', openWorkBuddyGateway))
