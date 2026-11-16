@@ -14,7 +14,7 @@
           <AccountTableActions
             :loading="loading"
             @refresh="handleManualRefresh"
-            @create="showWBAdd = true"
+            @create="showCreate = true"
           >
             <template #after>
               <!-- Auto Refresh Dropdown -->
@@ -132,12 +132,6 @@
                           <Icon name="lock" size="sm" />
                         </span>
                         <span class="flex-1 text-left">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
-                      </button>
-                      <button class="account-tools-menu-item" @click="showCreate = true">
-                        <span class="account-tools-menu-icon bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300">
-                          <Icon name="plus" size="sm" />
-                        </span>
-                        <span class="flex-1 text-left">其他平台账号（通用表单）</span>
                       </button>
                       <button class="account-tools-menu-item" @click="showWorkBuddy = true">
                         <span class="account-tools-menu-icon bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
@@ -475,7 +469,6 @@
     </TablePageLayout>
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
     <WorkBuddyGatewayModal :show="showWorkBuddy" :groups="groups" @close="showWorkBuddy = false" @synced="reload" />
-    <WorkBuddyGatewayModal :show="showWBAdd" :groups="groups" add-only @close="showWBAdd = false" @synced="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
@@ -616,7 +609,6 @@ const selTypes = computed<AccountType[]>(() => {
 })
 const showCreate = ref(false)
 const showWorkBuddy = ref(false)
-const showWBAdd = ref(false)
 const openWorkBuddyGateway = () => { showWorkBuddy.value = true }
 onMounted(() => window.addEventListener('sub2:open-workbuddy-gateway', openWorkBuddyGateway))
 onUnmounted(() => window.removeEventListener('sub2:open-workbuddy-gateway', openWorkBuddyGateway))
