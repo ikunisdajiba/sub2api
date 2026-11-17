@@ -456,7 +456,15 @@ export default {
         creditsExhaustedUntil: 'AI Credits 已用尽，预计 {time} 恢复',
         overloadedUntil: '负载过重，重置时间：{time}',
         viewTempUnschedDetails: '查看临时不可调度详情',
-        tempUnschedulableUntil: '预计 {time} 恢复'
+        tempUnschedulableUntil: '预计 {time} 恢复',
+        // 停用原因摘要：状态徽章上直接显示「简短中文（上游报错码）」
+        reasonQuotaExceeded: '额度已用尽',
+        reasonAccountRestricted: '账号被上游限制',
+        reasonRateLimited: '被上游限流',
+        reasonRequestBlocked: '请求被上游拦截',
+        reasonTokenRevoked: '令牌已失效',
+        reasonAuthFailed: '认证失败',
+        reasonWithCode: '{reason}（{code}）'
       },
       tempUnschedulable: {
         title: '临时不可调度',

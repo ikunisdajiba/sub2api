@@ -253,7 +253,15 @@ export default {
         creditsExhaustedUntil: 'AI Credits exhausted, expected recovery at {time}',
         overloadedUntil: 'Overloaded until {time}',
         viewTempUnschedDetails: 'View temp unschedulable details',
-        tempUnschedulableUntil: 'Resumes {time}'
+        tempUnschedulableUntil: 'Resumes {time}',
+        // Short reason shown on the status badge as "reason (upstream code)"
+        reasonQuotaExceeded: 'Quota exhausted',
+        reasonAccountRestricted: 'Account restricted',
+        reasonRateLimited: 'Rate limited upstream',
+        reasonRequestBlocked: 'Request blocked upstream',
+        reasonTokenRevoked: 'Token revoked',
+        reasonAuthFailed: 'Authentication failed',
+        reasonWithCode: '{reason} ({code})'
       },
       columns: {
         name: 'Name',

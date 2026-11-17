@@ -345,22 +345,61 @@ const statusClass = computed(() => {
   return 'badge-success'
 })
 
-// Computed: status text
-// 停用原因摘要：把 error_message 里最有信息量的一段抽出来，
-// 直接跟在状态后面显示，不用再悬停才看得到。
+// 停用原因摘要：状态徽章上直接显示「简短中文（上游报错码）」，
+// 例如「额度已用尽（14018）」。只显示裸数字用户看不懂，必须带上中文含义。
+// 上游码的写法见 backend/internal/handler/admin/account_handler.go：
+// 6004（限流）、11-128（请求被拦）、11140（账号受限）、14018（额度用尽）。
+const UPSTREAM_CODE_REASONS: Array<{ test: RegExp; key: string }> = [
+  { test: /^14018$/, key: 'reasonQuotaExceeded' },
+  { test: /^11140$/, key: 'reasonAccountRestricted' },
+  { test: /^6004$/, key: 'reasonRateLimited' },
+  { test: /^11-\d+$/, key: 'reasonRequestBlocked' },
+  { test: /^429$/, key: 'reasonRateLimited' },
+  { test: /^401$/, key: 'reasonAuthFailed' }
+]
+
+// error_message 里自带的文字含义，优先于按码猜测。
+const MESSAGE_REASONS: Array<{ test: RegExp; key: string }> = [
+  { test: /额度已用尽|额度不足|配额.*(?:用尽|超限)|quota\s*(?:exceeded|exhausted)|insufficient\s*quota/i, key: 'reasonQuotaExceeded' },
+  { test: /账号被上游限制|账号受限|account\s*(?:restricted|limited|disabled)/i, key: 'reasonAccountRestricted' },
+  { test: /请求被.*(?:拦|阻止)|request\s*blocked/i, key: 'reasonRequestBlocked' },
+  { test: /token\s*revoked|invalidated\s*oauth\s*token/i, key: 'reasonTokenRevoked' },
+  { test: /authentication\s*failed|unauthorized|invalid\s*(?:api\s*)?(?:key|token)/i, key: 'reasonAuthFailed' },
+  { test: /rate\s*limit|限流/i, key: 'reasonRateLimited' }
+]
+
 const disabledReasonShort = computed(() => {
   if (!hasErrorMessage.value) return ''
   const raw = (props.account.error_message || '').trim()
   if (!raw) return ''
-  // 优先取上游错误码（6004 / 11-128 / 11140）
-  const code = raw.match(/\b(\d{4,5}|\d{1,2}-\d{1,3})\b/)
-  if (code) return code[1]
-  return raw.length > 12 ? raw.slice(0, 12) + '…' : raw
+
+  // 上游错误码：4~5 位数字（14018 / 11140 / 6004）或区间写法（11-128）；
+  // 没有上游码时，退回括号里的 HTTP 状态码，例如 "Token revoked (401)"。
+  const codeMatch = raw.match(/\b(\d{4,5}|\d{1,2}-\d{1,3})\b/)
+  const httpMatch = raw.match(/\((\d{3})\)/)
+  const code = codeMatch ? codeMatch[1] : httpMatch ? httpMatch[1] : ''
+
+  // 先按消息文字判断含义，判断不出来再按错误码回退
+  const reasonKey =
+    MESSAGE_REASONS.find((r) => r.test.test(raw))?.key ||
+    (code ? UPSTREAM_CODE_REASONS.find((r) => r.test.test(code))?.key : '') ||
+    ''
+
+  if (reasonKey) {
+    const reason = t(`admin.accounts.status.${reasonKey}`)
+    return code ? t('admin.accounts.status.reasonWithCode', { reason, code }) : reason
+  }
+
+  // 既没有已知含义也没有已知码：去掉开头的码，截断原文兜底
+  const text = raw.replace(/^\s*[\d-]+\s*/, '').trim() || raw
+  const short = text.length > 12 ? text.slice(0, 12) + '…' : text
+  return code ? t('admin.accounts.status.reasonWithCode', { reason: short, code }) : short
 })
 
 const statusText = computed(() => {
   if (hasError.value) {
-    return t('admin.accounts.status.error')
+    const base = t('admin.accounts.status.error')
+    return disabledReasonShort.value ? `${base} · ${disabledReasonShort.value}` : base
   }
   if (isTempUnschedulable.value) {
     return t('admin.accounts.status.tempUnschedulable')
