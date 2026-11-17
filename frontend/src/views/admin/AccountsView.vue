@@ -14,7 +14,7 @@
           <AccountTableActions
             :loading="loading"
             @refresh="handleManualRefresh"
-            @create="showCreate = true"
+            @create="showWBAdd = true"
           >
             <template #after>
               <!-- Auto Refresh Dropdown -->
@@ -132,6 +132,12 @@
                           <Icon name="lock" size="sm" />
                         </span>
                         <span class="flex-1 text-left">{{ t('admin.tlsFingerprintProfiles.title') }}</span>
+                      </button>
+                      <button class="account-tools-menu-item" @click="showCreate = true">
+                        <span class="account-tools-menu-icon bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-gray-300">
+                          <Icon name="plus" size="sm" />
+                        </span>
+                        <span class="flex-1 text-left">其他平台账号（通用表单）</span>
                       </button>
                       <button class="account-tools-menu-item" @click="showWorkBuddy = true">
                         <span class="account-tools-menu-icon bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
@@ -468,6 +474,7 @@
       <template #pagination><Pagination v-if="pagination.total > 0" :page="pagination.page" :total="pagination.total" :page-size="pagination.page_size" @update:page="handlePageChange" @update:pageSize="handlePageSizeChange" /></template>
     </TablePageLayout>
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
+    <WorkBuddyAddModal :show="showWBAdd" :groups="groups" @close="showWBAdd = false" @created="reload" />
     <WorkBuddyGatewayModal :show="showWorkBuddy" :groups="groups" @close="showWorkBuddy = false" @synced="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
@@ -522,7 +529,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal, WorkBuddyGatewayModal } from '@/components/account'
+import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal, WorkBuddyGatewayModal, WorkBuddyAddModal } from '@/components/account'
 import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
@@ -609,6 +616,7 @@ const selTypes = computed<AccountType[]>(() => {
 })
 const showCreate = ref(false)
 const showWorkBuddy = ref(false)
+const showWBAdd = ref(false)
 const openWorkBuddyGateway = () => { showWorkBuddy.value = true }
 onMounted(() => window.addEventListener('sub2:open-workbuddy-gateway', openWorkBuddyGateway))
 onUnmounted(() => window.removeEventListener('sub2:open-workbuddy-gateway', openWorkBuddyGateway))
