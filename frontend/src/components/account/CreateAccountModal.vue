@@ -4558,11 +4558,10 @@ function selectTypeSafePlatform() {
   allowedModels.value = ['jev-latest']
 }
 function selectWorkBuddyPlatform() {
-  // 就是普通建号：选平台 + 填 key，本表单直接提交。不弹面板、不带列表。
-  form.platform = 'workbuddy'
-  form.type = 'apikey'
-  accountCategory.value = 'apikey'
-  if (!(apiKeyBaseUrl.value || '').trim()) apiKeyBaseUrl.value = 'http://wb-proxy:8788'
+  // WorkBuddy 账号必须走登录授权建号（网关侧的账号要带着 cookie/身份才能用），
+  // 通用表单填 key 建出来的账号在网关里没有实体，代理时会失败。
+  // 这里只切到「添加 WorkBuddy 账号」弹窗，不展示任何账号列表。
+  window.dispatchEvent(new CustomEvent('sub2:open-workbuddy-add'))
 }
 function selectGenericMultiProtocolPlatform(platform: string) {
   form.platform = platform

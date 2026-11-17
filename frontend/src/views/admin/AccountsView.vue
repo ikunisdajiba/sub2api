@@ -14,9 +14,18 @@
           <AccountTableActions
             :loading="loading"
             @refresh="handleManualRefresh"
-            @create="showWBAdd = true"
+            @create="showCreate = true"
           >
             <template #after>
+              <!-- WorkBuddy 探活：删掉网关面板后，探活入口放在原生账号列表工具栏 -->
+              <button
+                @click="showWBProbe = true"
+                class="btn btn-secondary px-2 md:px-3"
+                title="WorkBuddy 账号探活"
+              >
+                <Icon name="server" size="sm" />
+                <span class="hidden md:inline md:ml-1.5">探活</span>
+              </button>
               <!-- Auto Refresh Dropdown -->
               <div class="relative" ref="autoRefreshDropdownRef">
                 <button
@@ -139,11 +148,11 @@
                         </span>
                         <span class="flex-1 text-left">其他平台账号（通用表单）</span>
                       </button>
-                      <button class="account-tools-menu-item" @click="showWorkBuddy = true">
+                      <button class="account-tools-menu-item" @click="showWBAdd = true">
                         <span class="account-tools-menu-icon bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300">
                           <Icon name="server" size="sm" />
                         </span>
-                        <span class="flex-1 text-left">WorkBuddy 反代网关</span>
+                        <span class="flex-1 text-left">添加 WorkBuddy 账号</span>
                       </button>
 
                       <div class="my-2 border-t border-gray-100 dark:border-dark-700"></div>
@@ -475,7 +484,7 @@
     </TablePageLayout>
     <CreateAccountModal :show="showCreate" :proxies="proxies" :groups="groups" @close="showCreate = false" @created="reload" />
     <WorkBuddyAddModal :show="showWBAdd" :groups="groups" @close="showWBAdd = false" @created="reload" />
-    <WorkBuddyGatewayModal :show="showWorkBuddy" :groups="groups" @close="showWorkBuddy = false" @synced="reload" />
+    <WorkBuddyProbePanel :show="showWBProbe" @close="showWBProbe = false" @probed="reload" />
     <EditAccountModal :show="showEdit" :account="edAcc" :proxies="proxies" :groups="groups" @close="showEdit = false" @updated="handleAccountUpdated" />
     <ReAuthAccountModal :show="showReAuth" :account="reAuthAcc" @close="closeReAuthModal" @reauthorized="handleAccountUpdated" />
     <AccountTestModal :show="showTest" :account="testingAcc" @close="closeTestModal" />
@@ -529,7 +538,7 @@ import DataTable from '@/components/common/DataTable.vue'
 import HelpTooltip from '@/components/common/HelpTooltip.vue'
 import Pagination from '@/components/common/Pagination.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
-import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal, WorkBuddyGatewayModal, WorkBuddyAddModal } from '@/components/account'
+import { CreateAccountModal, EditAccountModal, BulkEditAccountModal, SyncFromCrsModal, TempUnschedStatusModal, WorkBuddyAddModal, WorkBuddyProbePanel } from '@/components/account'
 import AccountTableActions from '@/components/admin/account/AccountTableActions.vue'
 import AccountTableFilters from '@/components/admin/account/AccountTableFilters.vue'
 import AccountBulkActionsBar from '@/components/admin/account/AccountBulkActionsBar.vue'
@@ -615,11 +624,15 @@ const selTypes = computed<AccountType[]>(() => {
   return [...types]
 })
 const showCreate = ref(false)
-const showWorkBuddy = ref(false)
 const showWBAdd = ref(false)
-const openWorkBuddyGateway = () => { showWorkBuddy.value = true }
-onMounted(() => window.addEventListener('sub2:open-workbuddy-gateway', openWorkBuddyGateway))
-onUnmounted(() => window.removeEventListener('sub2:open-workbuddy-gateway', openWorkBuddyGateway))
+const showWBProbe = ref(false)
+// 通用建号表单里点「WorkBuddy 反代」时，关掉表单并打开只做登录建号的弹窗。
+const openWorkBuddyAdd = () => {
+  showCreate.value = false
+  showWBAdd.value = true
+}
+onMounted(() => window.addEventListener('sub2:open-workbuddy-add', openWorkBuddyAdd))
+onUnmounted(() => window.removeEventListener('sub2:open-workbuddy-add', openWorkBuddyAdd))
 const showEdit = ref(false)
 const showSync = ref(false)
 const showImportData = ref(false)
