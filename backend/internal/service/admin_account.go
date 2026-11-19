@@ -26,6 +26,13 @@ import (
 // 为 nil 时不做任何事，保持 service 层对具体外部系统的零依赖。
 var AccountStatusChangeHook func(ctx context.Context, account *Account, previousStatus string)
 
+// AccountProxyChangeHook 在账号的代理绑定被改动后回调，用于把 sub2 侧的出口
+// 代理反向同步到外部账号池（例如 WorkBuddy 网关的上游号）。
+//
+// proxy 为 nil 表示解绑（该账号改回直连）。为 nil 时不做任何事，保持 service
+// 层对具体外部系统的零依赖。
+var AccountProxyChangeHook func(ctx context.Context, account *Account, proxy *Proxy)
+
 // accountStatusSyncBypassKey 标记「这次状态变更来自外部同步」，
 // 避免 sub2 -> 网关 -> sub2 的无限往返。
 type accountStatusSyncBypassKey struct{}
@@ -960,6 +967,13 @@ func (s *adminServiceImpl) UpdateAccount(ctx context.Context, id int64, input *U
 		AccountStatusChangeHook != nil && !accountStatusSyncBypassed(ctx) {
 		AccountStatusChangeHook(ctx, updated, previousStatus)
 	}
+
+	// 代理绑定变了就把出口反向同步给外部账号池。updated.Proxy 由 GetByID
+	// 一并加载，nil 表示已解绑、改回直连。同样尽力而为，不影响本次更新。
+	if input.ProxyID != nil && !updated.IsCredentialShadow() &&
+		AccountProxyChangeHook != nil && !accountStatusSyncBypassed(ctx) {
+		AccountProxyChangeHook(ctx, updated, updated.Proxy)
+	}
 	return updated, nil
 }
 
@@ -1221,6 +1235,19 @@ func (s *adminServiceImpl) BulkUpdateAccounts(ctx context.Context, input *BulkUp
 			if err := s.propagateProxyToShadows(ctx, accountID, effectiveProxyID); err != nil {
 				return nil, err
 			}
+		}
+	}
+
+	// 批量改代理同样要反向同步给外部账号池：号一多用户只会用批量，
+	// 这里漏掉就等于「批量绑的代理网关侧完全不知道」，出口还是原来的。
+	// 逐个回查是为了拿到 GetByID 才会补齐的 Proxy 关联对象。
+	if repoUpdates.ProxyID != nil && AccountProxyChangeHook != nil && !accountStatusSyncBypassed(ctx) {
+		for _, accountID := range input.AccountIDs {
+			updated, err := s.accountRepo.GetByID(ctx, accountID)
+			if err != nil || updated == nil || updated.IsCredentialShadow() {
+				continue
+			}
+			AccountProxyChangeHook(ctx, updated, updated.Proxy)
 		}
 	}
 
