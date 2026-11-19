@@ -54,18 +54,20 @@ func NewWorkBuddyHandler(adminService service.AdminService) *WorkBuddyHandler {
 		}
 		url := ""
 		if proxy != nil {
-			// 网关只支持 http/https 代理：wb-proxy 的 ProxyHandler 遇到
-			// socks5:// 会直接 bypass 回退成直连，等于又把流量放回共享出口，
-			// 而且面板上看起来"已经绑了"，最难排查。这里宁可不动网关的出口
-			// 配置，也要把这条打出来。
+			// 网关支持 http 与 socks5（wb_upstream_pool 自带 SOCKS5 握手，
+			// 域名交代理侧解析）。socks5h 与 socks5 等价，也放行。
+			// 其余 scheme（https 代理、socks4）网关确实处理不了：同步过去只会
+			// 让面板显示"已绑定"、实际静默直连，所以拒绝并打日志。
 			scheme := strings.ToLower(strings.TrimSpace(proxy.Protocol))
-			if scheme != "http" && scheme != "https" {
+			switch scheme {
+			case "http", "socks5", "socks5h":
+				url = proxy.URL()
+			default:
 				slog.Error("workbuddy_proxy_unsupported_scheme",
 					"uid", uid, "protocol", proxy.Protocol,
-					"detail", "wb-proxy 只支持 http/https 代理，未同步；socks 会静默退回直连")
+					"detail", "wb-proxy 只支持 http/socks5 代理，未同步")
 				return
 			}
-			url = proxy.URL()
 		}
 		ctx = service.WithAccountStatusSyncBypass(ctx)
 		if _, err := h.client.SetAccount(ctx, map[string]any{"uid": uid, "proxy": url}); err != nil {
